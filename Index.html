@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quản Lý Nội Quy Học Sinh THPT Trần Văn Bảy</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .sidebar-link { transition: all 0.2s; }
+        .sidebar-link.active {
+            background-color: #eef2ff;
+            color: #4338ca;
+            font-weight: 600;
+            border-right: 4px solid #4338ca;
+        }
+        .page-content { display: none; }
+        .page-content.active { display: block; }
+        .header-content {
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        /* --- RESPONSIVE OPTIMIZATION --- */
+        /* Sidebar: Hide on mobile, show as fixed on desktop */
+        #app-container aside {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+            position: fixed;
+            z-index: 50;
+            height: 100vh;
+        }
+        #app-container.sidebar-open aside {
+            transform: translateX(0);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        @media (min-width: 768px) { /* md breakpoint in Tailwind */
+            #app-container aside {
+                transform: translateX(0);
+                position: static;
+                width: 16rem; /* w-64 */
+                box-shadow: none;
+            }
+            #app-container main {
+                margin-left: 0 !important;
+            }
+            #menu-button {
+                display: none;
+            }
+        }
+
+        /* Responsive Table for Mobile (Horizontal Scroll) */
+        .table-container { 
+            overflow-x: auto; 
+            max-height: 400px; 
+            overflow-y: auto;
+        }
+        .table-container table {
+            min-width: 600px; /* Force minimum width to enable scrolling */
+        }
+    
+    canvas { max-height: 180px !important; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+<div class="w-full h-full flex items-center justify-center bg-gray-100" id="login-screen">
+<div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+<div class="flex flex-col items-center mb-6">
+<img alt="Logo" class="h-24 w-auto mb-4" src="LOGO TVB CAP NHAT (1).jpg"/>
+<h2 class="text-2xl font-bold text-indigo-700 text-center">Đăng Nhập Hệ Thống</h2>
+<p class="text-sm text-gray-500">Quản Lý Nội Quy Học Sinh</p>
+</div>
+<div class="space-y-4">
+<div>
+<label class="block text-sm font-medium text-gray-700" for="login-email">Email</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" id="login-email" placeholder="admin@gmail.com" type="email"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700" for="login-password">Mật Khẩu</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" id="login-password" placeholder="••••••••" type="password"/>
+</div>
+<button class="w-full px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition" onclick="handleLogin()">
+                    Đăng Nhập
+                </button>
+<div class="mt-4 text-sm text-red-600 text-center" id="login-error"></div>
+</div>
+</div>
+</div>
+<div class="flex h-screen overflow-hidden w-full hidden relative" id="app-container">
+<div class="fixed inset-0 bg-black opacity-0 transition-opacity duration-300 md:hidden z-40 hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<aside class="w-64 bg-white shadow-lg flex-shrink-0 flex-col p-4 border-r border-gray-200">
+<div class="flex flex-col justify-center items-center mb-8 p-2">
+<img alt="Logo THPT Trần Văn Bảy" class="h-16 w-auto md:h-20" src="LOGO TVB CAP NHAT (1).jpg"/>
+<p class="mt-2 text-xs font-semibold text-indigo-700 text-center md:text-sm">
+                    Chương Trình Quản Lý<br/>Nội Quy Học Sinh
+                </p>
+</div>
+<nav class="flex-grow">
+<a class="sidebar-link active flex items-center p-3 my-1 rounded-lg text-gray-600 hover:bg-gray-100" data-page="import-data" href="#" onclick="toggleSidebar(true)">
+<span class="mr-3">📄</span> Nạp Danh Sách (Excel/CSV)
+                </a>
+<a class="sidebar-link flex items-center p-3 my-1 rounded-lg text-gray-600 hover:bg-gray-100" data-page="record-violation" href="#" onclick="toggleSidebar(true)">
+<span class="mr-3">🚨</span> Ghi Nhận Vi Phạm
+                </a>
+<a class="sidebar-link flex items-center p-3 my-1 rounded-lg text-gray-600 hover:bg-gray-100" data-page="statistics" href="#" onclick="toggleSidebar(true)">
+<span class="mr-3">📊</span> Thống Kê &amp; Xếp Hạng
+                </a>
+<a class="sidebar-link flex items-center p-3 my-1 rounded-lg text-gray-600 hover:bg-gray-100" data-page="conduct-grade" href="#" onclick="toggleSidebar(true)">
+<span class="mr-3">🏆</span> Rèn Luyện Hạnh Kiểm
+                </a>
+<a class="sidebar-link flex items-center p-3 my-1 rounded-lg text-gray-600 hover:bg-gray-100" data-page="manage-violations" href="#" onclick="toggleSidebar(true)">
+<span class="mr-3">⚙️</span> Cài Đặt Vi Phạm
+                </a>
+</nav>
+<div class="mt-auto pt-4 border-t">
+<p class="text-xs font-semibold text-gray-500 ml-4" id="firebase-status">Đang kết nối...</p>
+<button class="w-full mt-2 px-4 py-2 bg-red-100 text-red-700 font-semibold rounded-lg hover:bg-red-200 transition text-sm hidden" id="logout-button" onclick="handleLogout()">
+                    Đăng Xuất
+                </button>
+<p class="text-xs text-center text-gray-500 mt-2">Thiết kế bởi: thachminhhon@tranvanbayst.edu.vn</p>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto p-4 md:p-8">
+<button class="fixed top-2 left-2 z-50 p-2 bg-indigo-600 text-white rounded-md shadow-lg md:hidden" id="menu-button" onclick="toggleSidebar()">
+<svg class="h-6 w-6" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center header-content pt-10 md:pt-0">
+<h1 class="text-xl md:text-3xl font-extrabold text-indigo-700 mb-2 md:mb-0">Quản Lý Nội Quy HS THPT Trần Văn Bảy</h1>
+<div class="flex items-center space-x-2">
+<label class="text-sm font-medium text-gray-700" for="academic-year-select">Năm Học:</label>
+<select class="border border-gray-300 rounded-md p-2 text-sm bg-white shadow-sm" id="academic-year-select" onchange="changeAcademicYear()">
+</select>
+</div>
+</div>
+<div class="page-content active bg-white p-2 md:p-3 rounded-xl shadow-lg" id="import-data">
+<h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-700">📄 Nạp Danh Sách Học Sinh</h2>
+<div class="border-2 border-dashed border-gray-300 p-6 md:p-8 rounded-lg text-center bg-gray-50">
+<input accept=".xlsx, .xls, .csv" class="hidden" id="excel-file-input" type="file">
+<label class="cursor-pointer px-4 py-2 md:px-6 md:py-2 bg-indigo-50 text-indigo-700 font-semibold rounded-full shadow-sm hover:bg-indigo-100 transition text-sm md:text-base" for="excel-file-input">
+                        Chọn Tệp Excel/CSV
+                    </label>
+<span class="block mt-3 text-sm text-gray-500" id="file-name-display">Chưa có tệp nào được chọn</span>
+<button class="mt-4 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition text-sm md:text-base" onclick="handleExcelImport()">
+                        Nạp Dữ Liệu
+                    </button>
+</input></div>
+<div class="mt-4 flex flex-col md:flex-row items-center md:space-x-4 space-y-2 md:space-y-0">
+<a class="text-sm text-indigo-600 hover:text-indigo-800 font-medium inline-block" href="#" onclick="downloadSampleFile()">
+                        Tải file Excel mẫu (.csv)
+                    </a>
+<div class="text-sm text-green-600" id="import-status"></div>
+</div>
+<h3 class="text-lg md:text-xl font-semibold mt-6 mb-3 text-gray-700 border-t pt-4">Cấu Trúc File Excel Mẫu</h3>
+<p class="text-sm text-gray-500">Tên cột **phải chính xác**:</p>
+<code class="block bg-gray-100 p-3 rounded-lg mt-2 text-xs md:text-sm text-gray-800 font-mono">
+                    MaHS, HoTen, Lop, GioiTinh, NgaySinh
+                </code>
+</div>
+<div class="page-content bg-white p-2 md:p-3 rounded-xl shadow-lg" id="record-violation">
+<h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-700">🚨 Ghi Nhận Vi Phạm</h2>
+<input id="edit-violation-id" type="hidden" value=""/>
+<input id="edit-original-points" type="hidden" value="0"/>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+<div>
+<label class="block text-sm font-medium text-gray-700">Ngày Vi Phạm</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="violation-date" type="date" value=""/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700">Lớp Vi Phạm</label>
+<select class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="violation-class">
+<option value="">-- Chọn Lớp --</option>
+</select>
+</div>
+<div class="relative">
+<label class="block text-sm font-medium text-gray-700">Họ Tên Học Sinh (Gõ để tìm)</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 relative z-10" id="student-name-search" oninput="searchStudentByName()" placeholder="Bắt đầu gõ Họ Tên..." type="text"/>
+<input id="violation-student" type="hidden" value=""/>
+<div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden" id="student-search-results">
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+<div class="md:col-span-2">
+<label class="block text-sm font-medium text-gray-700">Học Sinh Đã Chọn (Xác nhận)</label>
+<div class="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm font-semibold text-gray-700" id="student-name-display">
+<span class="text-gray-500 italic">Vui lòng tìm và chọn Tên HS ở trên.</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="block text-sm font-medium text-gray-700">Loại Vi Phạm &amp; Điểm Trừ</label>
+<select class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="violation-type" onchange="updateViolationPoints()">
+<option value="">-- Chọn Loại Vi Phạm --</option>
+<optgroup label="Loại Đặc Biệt">
+<option value="ViPhamKhac">Vi phạm khác (Tùy chỉnh điểm trừ)</option>
+<option value="DiemCong">Điểm Cộng (Việc tốt)</option>
+</optgroup>
+</select>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700">Số Điểm Ảnh Hưởng</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-gray-100" id="violation-points" readonly="" type="number" value="0"/>
+</div>
+</div>
+<div class="mt-4">
+<label class="block text-sm font-medium text-gray-700">Ghi Chú Chi Tiết</label>
+<textarea class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="violation-note" rows="3"></textarea>
+</div>
+<div class="flex items-center space-x-4">
+<button class="mt-6 px-6 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition" onclick="recordViolation()">
+                        Lưu Vi Phạm
+                    </button>
+<button class="mt-6 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition" onclick="clearViolationForm()">
+                        Huỷ
+                    </button>
+</div>
+<div class="mt-4 text-sm text-red-600" id="violation-status"></div>
+<div class="mt-8 pt-6 border-t">
+<h3 class="text-lg md:text-xl font-semibold mb-4 text-indigo-700">Danh Sách Vi Phạm Trong Tuần</h3>
+<div class="table-container border rounded-lg">
+<table class="min-w-full divide-y divide-gray-200">
+<thead class="bg-gray-50 sticky top-0">
+<tr>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Họ Tên HS</th>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lớp</th>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Loại Vi Phạm</th>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Điểm</th>
+<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Thao Tác</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="recent-violations-table">
+<tr>
+<td class="px-6 py-4 text-center text-sm text-gray-500" colspan="6">Đang tải danh sách...</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="page-content" id="statistics">
+<h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-700">📊 Thống Kê &amp; Xếp Hạng - <span class="font-bold" id="current-year-display"></span></h2>
+<div class="flex flex-col md:flex-row items-stretch md:items-end gap-4 mb-6">
+<div>
+<label class="block text-sm font-medium text-gray-700" for="stats-time-frame">Thời gian thống kê:</label>
+<select class="border border-gray-300 rounded-md p-2 text-sm w-full md:w-auto" id="stats-time-frame" onchange="toggleDateInputs(); drawCharts();">
+<option value="weekly">Tuần này</option>
+<option value="monthly">Tháng này</option>
+<option value="semester">Học kỳ I</option>
+<option value="semester2">Học kỳ II</option>
+<option value="yearly">Cả Năm</option>
+<option value="custom">Khoảng Tùy chỉnh</option>
+</select>
+</div>
+<div class="flex flex-col md:flex-row space-y-2 md:space-x-2 md:space-y-0 hidden w-full md:w-auto" id="custom-date-inputs">
+<div>
+<label class="block text-sm font-medium text-gray-700" for="start-date-select">Từ Ngày:</label>
+<input class="border border-gray-300 rounded-md p-2 text-sm w-full md:w-40" id="start-date-select" onchange="drawCharts()" type="date"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700" for="end-date-select">Đến Ngày:</label>
+<input class="border border-gray-300 rounded-md p-2 text-sm w-full md:w-40" id="end-date-select" onchange="drawCharts()" type="date"/>
+</div>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700" for="stats-grade">Lọc theo Khối:</label>
+<select class="border border-gray-300 rounded-md p-2 text-sm w-full md:w-auto" id="stats-grade" onchange="drawCharts()">
+<option value="all">Tất cả Khối</option>
+<option value="10">Khối 10</option>
+<option value="11">Khối 11</option>
+<option value="12">Khối 12</option>
+</select>
+</div>
+<div class="w-full md:w-auto md:ml-auto">
+<button class="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition flex items-center justify-center" onclick="exportRankingToExcel()">
+<span class="mr-2">📥</span> Xuất Excel
+                        </button>
+</div>
+</div>
+<div class="bg-white p-2 md:p-3 rounded-xl shadow-lg mb-6">
+<h3 class="text-lg md:text-xl font-semibold mb-3">Xếp Hạng Thi Đua Lớp (Điểm Rèn Luyện)</h3>
+<canvas id="rankingChart"></canvas>
+</div>
+<div class="bg-white p-2 md:p-3 rounded-xl shadow-lg mb-6">
+<h3 class="text-lg md:text-xl font-semibold mb-3">Top 10 Lớp Xếp Hạng</h3>
+<div class="table-container border rounded-lg">
+<table class="min-w-full divide-y divide-gray-200">
+<thead class="bg-gray-50 sticky top-0">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạng</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khối</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng Điểm</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="ranking-table-body">
+<tr><td class="px-6 py-4 text-center text-sm text-gray-500" colspan="4">Đang tải dữ liệu...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+<div class="bg-white p-2 md:p-3 rounded-xl shadow-lg">
+<h3 class="text-lg md:text-xl font-semibold mb-3">Thống Kê Tỷ Lệ Rèn Luyện Hạnh Kiểm</h3>
+<canvas id="conductRatioChart"></canvas>
+</div>
+<div class="bg-white p-2 md:p-3 rounded-xl shadow-lg">
+<h3 class="text-lg md:text-xl font-semibold mb-3">Thống Kê Trạng Thái Học Sinh</h3>
+<canvas id="absenceChart"></canvas>
+</div>
+</div>
+<div class="bg-white p-2 md:p-3 rounded-xl shadow-lg mb-6">
+<h3 class="text-lg md:text-xl font-semibold mb-3 text-red-700">⚠️ Danh Sách Học Sinh Chậm Tiến Bộ Cần Theo Dõi (Điểm Dưới 80)</h3>
+<div class="table-container border rounded-lg">
+<table class="min-w-full divide-y divide-gray-200">
+<thead class="bg-gray-50 sticky top-0">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã HS</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ Tên</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điểm Hiện Tại</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xếp Loại Tạm</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SL Vi Phạm</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="special-students-table-body">
+<tr><td class="px-6 py-4 text-center text-sm text-gray-500" colspan="6">Đang tải dữ liệu...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="page-content bg-white p-2 md:p-3 rounded-xl shadow-lg" id="conduct-grade">
+<h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-700">🏆 Rèn Luyện Hạnh Kiểm &amp; Quản Lý Trạng Thái HS</h2>
+<p class="text-gray-600 mb-6 text-sm md:text-base">Thao tác này sẽ áp dụng cho Năm Học: <span class="font-bold text-indigo-600" id="conduct-year-display"></span></p>
+<h3 class="text-lg md:text-xl font-semibold mt-6 mb-3">1. Tính Điểm &amp; Xếp Loại Hạnh Kiểm</h3>
+<div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+<select class="mt-1 block w-full md:w-64 border border-gray-300 rounded-md shadow-sm p-2" id="semester-select">
+<option value="HocKy1">Học Kỳ I</option>
+<option value="HocKy2">Học Kỳ II</option>
+<option selected="" value="CaNam">Cả Năm</option>
+</select>
+<button class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition" onclick="calculateConductGrade()">
+                        Thực Hiện Xếp Loại
+                    </button>
+</div>
+<h3 class="text-lg md:text-xl font-semibold mt-6 mb-3 pt-4 border-t">2. Xuất Kết Quả rèn luyện</h3>
+<div class="flex flex-col space-y-3 md:flex-row md:flex-wrap md:space-x-4 md:space-y-0 items-start md:items-end mb-4">
+<div>
+<label class="block text-sm font-medium text-gray-700">Lọc theo</label>
+<select class="mt-1 block w-full md:w-48 border border-gray-300 rounded-md shadow-sm p-2" id="export-scope" onchange="toggleExportFilters()">
+<option value="all">Toàn Trường</option>
+<option value="grade">Theo Khối</option>
+<option value="class">Theo Lớp</option>
+</select>
+</div>
+<div class="hidden" id="export-grade-div">
+<label class="block text-sm font-medium text-gray-700">Chọn Khối</label>
+<select class="mt-1 block w-full md:w-32 border border-gray-300 rounded-md shadow-sm p-2" id="export-grade-select">
+<option value="10">Khối 10</option>
+<option value="11">Khối 11</option>
+<option value="12">Khối 12</option>
+</select>
+</div>
+<div class="hidden" id="export-class-div">
+<label class="block text-sm font-medium text-gray-700">Chọn Lớp</label>
+<select class="mt-1 block w-full md:w-48 border border-gray-300 rounded-md shadow-sm p-2" id="conduct-class-select">
+<option value="">-- Chọn Lớp --</option>
+</select>
+</div>
+<button class="w-full md:w-auto px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition" onclick="exportConductResults()">
+                        Xuất Excel
+                    </button>
+</div>
+<div class="mt-4" id="conduct-results">
+<p class="text-sm text-gray-500 italic">Vui lòng nhấn "Thực Hiện Xếp Loại" để xem kết quả.</p>
+</div>
+<h3 class="text-lg md:text-xl font-semibold mt-6 mb-3 border-t pt-4">Quản Lý Trạng Thái Học Sinh</h3>
+<p class="text-gray-600 mb-4 text-sm">Cập nhật trạng thái nghỉ học luôn hoặc chuyển trường của học sinh.</p>
+<div class="flex flex-col space-y-2 md:flex-row md:space-x-4 md:space-y-0">
+<input class="mt-1 block border border-gray-300 rounded-md shadow-sm p-2" id="status-student-id" placeholder="Mã HS" type="text"/>
+<select class="mt-1 block border border-gray-300 rounded-md shadow-sm p-2" id="student-status-type">
+<option value="active">Đang học</option>
+<option value="dropped">Nghỉ học luôn</option>
+<option value="transferred">Chuyển trường</option>
+</select>
+<button class="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition" onclick="updateStudentStatus()">
+                        Cập Nhật Trạng Thái
+                    </button>
+</div>
+</div>
+<div class="page-content bg-white p-2 md:p-3 rounded-xl shadow-lg" id="manage-violations">
+<h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-700">⚙️ Quản Lý Loại Vi Phạm &amp; Điểm Trừ</h2>
+<p class="text-gray-600 mb-6 text-sm md:text-base">áp dụng: <span class="font-bold text-indigo-600" id="violation-year-display"></span></p>
+<div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 mb-6">
+<h3 class="text-lg font-semibold mb-3 text-indigo-700">Nạp Loại Vi Phạm từ File Excel/CSV</h3>
+<div class="flex flex-col space-y-3">
+<div class="flex items-center space-x-4">
+<a class="text-sm text-indigo-600 hover:text-indigo-800 font-medium inline-block" href="#" onclick="downloadViolationSampleFile()">
+                                Tải file Excel mẫu (.csv)
+                            </a>
+</div>
+<div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center bg-white">
+<input accept=".xlsx, .xls, .csv" class="hidden" id="violation-excel-file-input" type="file">
+<label class="cursor-pointer px-6 py-2 bg-indigo-50 text-indigo-700 font-semibold rounded-full shadow-sm hover:bg-indigo-100 transition" for="violation-excel-file-input">
+                                Chọn Tệp Excel/CSV
+                            </label>
+<span class="block mt-3 text-sm text-gray-500" id="violation-file-name-display">Chưa có tệp nào được chọn</span>
+<button class="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition" onclick="handleViolationExcelImport()">
+                                Nạp Dữ Liệu Vi Phạm
+                            </button>
+<div class="mt-3 text-sm font-semibold" id="violation-import-status"></div>
+</input></div>
+</div>
+<h3 class="text-sm font-semibold mt-4 mb-1 text-gray-700">Cấu Trúc File Excel Mẫu</h3>
+<code class="block bg-gray-100 p-2 rounded-lg text-xs text-gray-800 font-mono">
+                        TenViPham, DiemTru
+                    </code>
+</div>
+<div class="bg-gray-50 p-4 rounded-lg border mb-6">
+<h3 class="text-lg font-semibold mb-3 text-gray-700">Thêm Mới / Cập Nhật Vi Phạm (Thủ công)</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div>
+<label class="block text-sm font-medium text-gray-700">Tên Vi Phạm (VD: Vệ sinh lớp)</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="new-rule-name" type="text"/>
+<input id="edit-rule-id" type="hidden" value=""/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700">Điểm Trừ / Cộng (VD: -5 hoặc 10)</label>
+<input class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" id="new-rule-points" type="number"/>
+</div>
+<div class="flex items-end space-x-2">
+<button class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition w-1/2 md:w-auto" onclick="saveViolationRule()">
+                                Lưu
+                            </button>
+<button class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition w-1/2 md:w-auto" onclick="clearViolationRuleForm()">
+                                Huỷ
+                            </button>
+</div>
+</div>
+<div class="mt-3 text-sm" id="rule-save-status"></div>
+</div>
+<h3 class="text-lg font-semibold mb-3 text-gray-700">Danh Sách Vi Phạm Hiện Hành</h3>
+<div class="table-container border rounded-lg">
+<table class="min-w-full divide-y divide-gray-200">
+<thead class="bg-gray-50 sticky top-0">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên Vi Phạm</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Điểm</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao Tác</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="violation-rules-table">
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+<script>
+        // --- 3. JavaScript Logic Nâng Cấp ---
+
+        const VIOLATION_POINTS = {
+            ViPhamKhac: -3, 
+            DiemCong: 5 
+        };
+        
+        let CURRENT_ACADEMIC_YEAR = ''; 
+        const mainCollection = "students"; 
+        const violationCollection = "violations"; 
+        const violationRulesCollection = "violationRules"; 
+
+        const firebaseConfig = {
+  apiKey: "AIzaSyD6u69xYlyEI6Ax-GoUrXxXQdyFANS-q2w",
+  authDomain: "noiqui.firebaseapp.com",
+  projectId: "noiqui",
+  storageBucket: "noiqui.firebasestorage.app",
+  messagingSenderId: "893598726699",
+  appId: "1:893598726699:web:0c40002797c5563c6c486e",
+  measurementId: "G-BB4M6Z5EX9"
+};
+
+        let db; 
+        let auth; 
+        let CLASSES_LIST = []; 
+        let currentConductResults = [];
+        let recentViolationsListener = null;
+
+        // Global Chart instances
+        let rankingChart = null;
+        let absenceChart = null;
+        let conductRatioChart = null; // NEW: Biến cho biểu đồ tỷ lệ xếp loại
+
+        function initFirebase() {
+            try {
+                // Đã bỏ điều kiện if (firebase.apps.length) theo góp ý trước đó
+                firebase.initializeApp(firebaseConfig);
+                
+                auth = firebase.auth();
+                db = firebase.firestore();
+                
+                document.getElementById('firebase-status').textContent = "✅ Firebase đã được khởi tạo."; 
+                document.getElementById('firebase-status').className = 'text-xs font-semibold text-green-600 ml-4';
+
+                setupAuthListener();
+
+            } catch (error) {
+                 document.getElementById('firebase-status').textContent = "❌ Lỗi: " + error.message;
+                 document.getElementById('firebase-status').className = 'text-xs font-semibold text-red-600 ml-4';
+                 
+                 const loginError = document.getElementById('login-error');
+                 if (loginError) {
+                    loginError.textContent = `Lỗi khởi tạo Firebase: ${error.message}. Kiểm tra lại cấu hình.`;
+                 }
+            }
+        }
+        
+        // ***************************************************************
+        // CÁC HÀM XỬ LÝ ĐĂNG NHẬP VÀ TRẠNG THÁI AUTH
+        // ***************************************************************
+        
+        function setupAuthListener() {
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('app-container').classList.remove('hidden');
+                    document.getElementById('logout-button').classList.remove('hidden');
+                    initializeAppLogic();
+                } else {
+                    document.getElementById('login-screen').classList.remove('hidden');
+                    document.getElementById('app-container').classList.add('hidden');
+                    document.getElementById('logout-button').classList.add('hidden');
+                }
+            });
+        }
+        
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const loginError = document.getElementById('login-error');
+            loginError.textContent = '';
+            
+            if (!email || !password) {
+                loginError.textContent = "Vui lòng nhập Email và Mật khẩu.";
+                return;
+            }
+
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                console.log("Đăng nhập thành công:", userCredential.user.email);
+            } catch (error) {
+                if (error.code === 'auth/wrong-password') {
+                    loginError.textContent = "Sai mật khẩu. Vui lòng thử lại.";
+                } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+                    loginError.textContent = "Không tìm thấy tài khoản với email này hoặc email không hợp lệ.";
+                } else {
+                    loginError.textContent = `Lỗi: ${error.message}`;
+                }
+                console.error("Lỗi đăng nhập:", error);
+            }
+        }
+
+        function handleLogout() {
+            if (confirm("Bạn có chắc muốn đăng xuất?")) {
+                auth.signOut().catch((error) => {
+                    console.error("Lỗi khi đăng xuất:", error);
+                    alert(`Lỗi đăng xuất: ${error.message}`);
+                });
+            }
+        }
+        
+        // *** HÀM MỚI CHO MOBILE ***
+        function toggleSidebar(forceClose = false) {
+            const appContainer = document.getElementById('app-container');
+            const overlay = document.getElementById('sidebar-overlay');
+            const sidebar = appContainer.querySelector('aside');
+            const isOpen = appContainer.classList.contains('sidebar-open');
+
+            if (forceClose && !isOpen) return; // Không cần làm gì nếu đã đóng
+
+            if (isOpen || forceClose) {
+                appContainer.classList.remove('sidebar-open');
+                overlay.classList.add('hidden');
+                overlay.classList.remove('opacity-50');
+            } else {
+                appContainer.classList.add('sidebar-open');
+                overlay.classList.remove('hidden');
+                setTimeout(() => { overlay.classList.add('opacity-50'); }, 10);
+            }
+        }
+        
+        // ***************************************************************
+        // CÁC HÀM KHỞI TẠO VÀ CHUYỂN TAB
+        // ***************************************************************
+        
+        function initializeAppLogic() {
+            console.log("Khởi tạo ứng dụng...");
+            document.getElementById('violation-date').valueAsDate = new Date();
+            setupAcademicYearSelector();
+            loadClassesToSelect();
+            loadViolationRules();
+            setupChartPlaceholders();
+            drawCharts();
+            loadRecentViolationsListener();
+
+            // Thiết lập logic chuyển tab
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            const pageContents = document.querySelectorAll('.page-content');
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    pageContents.forEach(content => content.classList.remove('active'));
+                    sidebarLinks.forEach(l => l.classList.remove('active'));
+                    
+                    const pageId = link.getAttribute('data-page');
+                    document.getElementById(pageId).classList.add('active');
+                    link.classList.add('active');
+                    
+                    if (pageId === 'statistics') {
+                        drawCharts();
+                    }
+                    if (pageId === 'manage-violations') {
+                        document.getElementById('violation-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+                        loadViolationManagementTable();
+                    }
+                    
+                    if (pageId !== 'conduct-grade') {
+                        // Reset kết quả xếp loại khi chuyển sang tab khác
+                        document.getElementById('conduct-results').innerHTML = '<p class="text-sm text-gray-500 italic">Vui lòng nhấn "Thực Hiện Xếp Loại" để xem kết quả.</p>';
+                        currentConductResults = [];
+                    }
+                    
+                    // Đóng sidebar sau khi chọn trên mobile
+                    if (window.innerWidth < 768) {
+                        toggleSidebar(true);
+                    }
+                });
+            });
+        }
+        
+        
+        function setupAcademicYearSelector() {
+            const selector = document.getElementById('academic-year-select');
+            selector.innerHTML = '';
+            const years = [
+                '2025-2026',
+                '2026-2027',
+                '2027-2028',
+                '2028-2029',
+                '2029-2030',
+                '2030-2031'
+            ];
+            years.forEach((year, idx) => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (idx === 0) option.selected = true;
+                selector.appendChild(option);
+            });
+            CURRENT_ACADEMIC_YEAR = '2025-2026';
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.getElementById('conduct-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.getElementById('violation-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+        }
+
+        function
+     changeAcademicYear() {
+            const selector = document.getElementById('academic-year-select');
+            CURRENT_ACADEMIC_YEAR = selector.value;
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.getElementById('conduct-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.getElementById('violation-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            
+            // Tải lại dữ liệu cho tab đang hoạt động
+            loadClassesToSelect();
+            loadViolationRules(); 
+            const currentPage = document.querySelector('.page-content.active');
+            if (currentPage) {
+                if (currentPage.id === 'statistics') {
+                    drawCharts();
+                }
+                if (currentPage.id === 'manage-violations') {
+                    loadViolationManagementTable();
+                }
+            }
+        }
+
+        async function loadClassesToSelect() { 
+            if (!db) return;
+            try {
+                const studentsRef = db.collection(mainCollection);
+                const snapshot = await studentsRef
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active')
+                    .get();
+
+                const classes = new Set();
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.Lop) {
+                        classes.add(data.Lop);
+                    }
+                });
+                
+                CLASSES_LIST = Array.from(classes).sort();
+
+                const selectClassElements = document.querySelectorAll('#violation-class, #conduct-class-select');
+                selectClassElements.forEach(selectEl => {
+                    selectEl.innerHTML = '<option value="">-- Chọn Lớp --</option>';
+                    CLASSES_LIST.forEach(className => {
+                        const option = document.createElement('option');
+                        option.value = className;
+                        option.textContent = className;
+                        selectEl.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error("Lỗi khi tải danh sách lớp:", error);
+            }
+        }
+// ***************************************************************
+        // CÁC HÀM CHO TRANG NẠP DANH SÁCH (IMPORT-DATA)
+        // ***************************************************************
+        
+        // 1. Hàm Tải File Mẫu (Đã chuyển sang .xlsx chuẩn)
+        function downloadSampleFile() {
+            const data = [
+                ["Mã học sinh", "Họ và tên", "Lớp học", "Giới tính", "Ngày sinh"],
+                ["2508588067", "Sơn Bảo An", "10T1", "Nam", "28/01/2010"],
+                ["2508588047", "Trần Nguyên Duy An", "10T1", "Nam", "20/11/2010"],
+                ["2508588022", "Võ Nguyễn Bảo Hân", "11A3", "Nữ", "05/09/2009"],
+                ["2508588099", "Nguyễn Minh Cảnh", "12B10", "Nam", "15/05/2008"]
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{wch: 15}, {wch: 25}, {wch: 10}, {wch: 10}, {wch: 15}]; // Chỉnh độ rộng cột
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "DanhSachMau");
+            XLSX.writeFile(wb, "DanhSachHocSinh_Mau.xlsx");
+        }
+
+        // 2. Hàm Nạp Dữ Liệu (Đã thêm AI mini quét tiêu đề thông minh)
+        async function handleExcelImport() {
+            const fileInput = document.getElementById('excel-file-input');
+            const statusDiv = document.getElementById('import-status');
+            statusDiv.textContent = ''; 
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusDiv.textContent = "Vui lòng chọn một tệp Excel/CSV để nạp.";
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-semibold';
+                return;
+            }
+            if (!db) {
+                statusDiv.textContent = "Lỗi kết nối Firebase.";
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-semibold';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            statusDiv.textContent = 'Đang đọc tệp...';
+            statusDiv.className = 'mt-4 text-sm text-blue-600 font-semibold';
+            
+            const academicYear = CURRENT_ACADEMIC_YEAR;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (json.length < 2) {
+                        throw new Error("Tệp không có dữ liệu.");
+                    }
+
+                    // --- BỘ QUÉT TÌM CỘT THÔNG MINH ---
+                    const cleanString = (str) => {
+                        if (!str) return "";
+                        return String(str)
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '') // Xóa dấu tiếng Việt
+                            .replace(/[^a-zA-Z0-9]/g, '')    // Giữ lại đúng chữ và số, bỏ ký tự tàng hình (BOM)
+                            .toUpperCase();
+                    };
+
+                    let headerIdx = -1;
+                    let headerRow = [];
+
+                    // Tìm dòng tiêu đề trong 5 dòng đầu tiên (đề phòng có dòng trống)
+                    for (let i = 0; i < Math.min(json.length, 5); i++) {
+                        if (!json[i]) continue;
+                        const rowNorm = json[i].map(cleanString);
+                        if (rowNorm.includes('MAHS') || rowNorm.includes('MAHOCSINH') || rowNorm.includes('HOTEN') || rowNorm.includes('HOVATEN')) {
+                            headerIdx = i;
+                            headerRow = rowNorm;
+                            break;
+                        }
+                    }
+
+                    if (headerIdx === -1) {
+                        throw new Error("Không tìm thấy dòng tiêu đề. File phải có cột 'Mã học sinh' hoặc 'Họ và tên'.");
+                    }
+
+                    // Khai báo các cách viết có thể có của tiêu đề
+                    const headerRules = {
+                        'MAHS': ['MAHS', 'MAHOCSINH', 'ID', 'MHS'],
+                        'HOTEN': ['HOTEN', 'HOVATEN', 'TEN', 'HOVATENHOCSINH'],
+                        'LOP': ['LOP', 'LOPHOC', 'CLASS'],
+                        'GIOITINH': ['GIOITINH', 'PHAI', 'GIOI'],
+                        'NGAYSINH': ['NGAYSINH', 'NAMSINH', 'NGAYTHANGNAMSINH']
+                    };
+
+                    const headerMap = {};
+                    Object.keys(headerRules).forEach(req => {
+                        const possibleNames = headerRules[req];
+                        const foundIndex = headerRow.findIndex(h => possibleNames.includes(h));
+                        if (foundIndex === -1) {
+                            throw new Error(`Thiếu cột bắt buộc: ${req}`);
+                        }
+                        headerMap[req] = foundIndex;
+                    });
+                    // --- KẾT THÚC BỘ QUÉT ---
+
+                    const dataRows = json.slice(headerIdx + 1);
+                    const studentsToProcess = dataRows
+                        .map(row => {
+                            if (!row || row.length === 0) return null;
+                            const maHsValue = String(row[headerMap['MAHS']] || '').trim();
+                            const hoTenValue = String(row[headerMap['HOTEN']] || '').trim();
+                            const lopValue = String(row[headerMap['LOP']] || '').trim();
+
+                            if (!maHsValue || !hoTenValue || !lopValue) return null;
+
+                            return {
+                                MaHS: maHsValue,
+                                HoTen: hoTenValue,
+                                Lop: lopValue,
+                                GioiTinh: String(row[headerMap['GIOITINH']] || '').trim(),
+                                NgaySinh: String(row[headerMap['NGAYSINH']] || '').trim(),
+                                AcademicYear: academicYear,
+                                Khoi: parseInt(lopValue.match(/^(\d+)/)?.[1] || 0), // Lấy Khối từ tên Lớp (VD: 10T1 -> 10)
+                                Status: 'active',
+                                InitialPoints: 100,
+                                CurrentPoints: 100,
+                                ViolationCount: 0 // Khởi tạo số lần vi phạm
+                            };
+                        })
+                        .filter(s => s !== null);
+
+                    if (studentsToProcess.length === 0) {
+                        throw new Error("Không tìm thấy học sinh hợp lệ để nạp. Vui lòng kiểm tra lại cấu trúc file.");
+                    }
+
+                    const maxBatchSize = 499;
+                    let totalImported = 0;
+                    const totalBatches = Math.ceil(studentsToProcess.length / maxBatchSize);
+
+                    for (let i = 0; i < studentsToProcess.length; i += maxBatchSize) {
+                        const batch = db.batch();
+                        const chunk = studentsToProcess.slice(i, i + maxBatchSize);
+
+                        chunk.forEach(student => {
+                            const studentDocId = `${student.MaHS}|${student.AcademicYear}`;
+                            const studentRef = db.collection(mainCollection).doc(studentDocId);
+                            batch.set(studentRef, student, { merge: true }); 
+                        });
+
+                        await batch.commit();
+                        totalImported += chunk.length;
+                        statusDiv.textContent = `Đang nạp: Gửi lô ${Math.ceil(totalImported / maxBatchSize)} / ${totalBatches}. Đã xử lý ${totalImported} HS...`;
+                        statusDiv.className = 'mt-4 text-sm text-blue-600 font-semibold';
+                    }
+
+                    statusDiv.textContent = `✅ Nạp danh sách thành công ${totalImported} học sinh.`;
+                    statusDiv.className = 'mt-4 text-sm text-green-600 font-bold';
+                    loadClassesToSelect(); // Tải lại danh sách lớp sau khi nạp
+
+                } catch (error) {
+                    console.error("Lỗi khi xử lý file Excel:", error);
+                    statusDiv.textContent = `❌ Lỗi Nạp Dữ Liệu: ${error.message}`;
+                    statusDiv.className = 'mt-4 text-sm text-red-600 font-bold';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+        // ***************************************************************
+        // CÁC HÀM CHO TRANG GHI NHẬN VI PHẠM (RECORD-VIOLATION)
+        // ***************************************************************
+
+        function selectStudent(maHS, hoTen, lop) {
+            document.getElementById('violation-student').value = maHS;
+            document.getElementById('student-name-search').value = hoTen;
+            document.getElementById('violation-class').value = lop;
+            document.getElementById('student-search-results').classList.add('hidden');
+            document.getElementById('student-name-display').textContent = `${hoTen} (${lop} - ${maHS})`;
+            document.getElementById('student-name-display').className = 'mt-1 p-2 bg-green-50 border border-green-200 rounded-md text-sm font-semibold text-gray-700';
+        }
+
+        async function searchStudentByName() {
+            if (!db) return;
+            const searchInput = document.getElementById('student-name-search');
+            const searchResults = document.getElementById('student-search-results');
+            const maHsInput = document.getElementById('violation-student');
+            const nameDisplay = document.getElementById('student-name-display');
+            const selectedClass = document.getElementById('violation-class').value;
+            const searchTerm = searchInput.value.trim();
+
+            maHsInput.value = ''; // Reset MaHS đã chọn
+
+            if (searchTerm.length < 2) {
+                searchResults.classList.add('hidden');
+                nameDisplay.innerHTML = '<span class="text-gray-500 italic">Vui lòng tìm và chọn Tên HS ở trên.</span>';
+                nameDisplay.className = 'mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm font-semibold text-gray-700';
+                return;
+            }
+
+            searchResults.innerHTML = '<div class="p-2 text-sm text-gray-500">Đang tìm kiếm...</div>';
+            searchResults.classList.remove('hidden');
+
+            try {
+                let query = db.collection(mainCollection)
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR);
+
+                if (selectedClass) {
+                    query = query.where('Lop', '==', selectedClass);
+                }
+
+                // Dùng kỹ thuật truy vấn dải (range query) để tìm kiếm gần đúng theo tên
+                query = query
+                    .where('HoTen', '>=', searchTerm)
+                    .where('HoTen', '<=', searchTerm + '\uf8ff')
+                    .orderBy('HoTen')
+                    .limit(10); 
+                
+                const snapshot = await query.get();
+
+                if (snapshot.empty) {
+                    searchResults.innerHTML = `<div class="p-2 text-sm text-red-600">Không tìm thấy HS nào khớp với "${searchTerm}" ${selectedClass ? 'trong lớp ' + selectedClass : ''}.</div>`;
+                    maHsInput.value = '';
+                    nameDisplay.innerHTML = `<span class="text-red-600 italic">❌ Không tìm thấy.</span>`;
+                    nameDisplay.className = 'mt-1 p-2 bg-red-50 border border-red-200 rounded-md text-sm font-semibold text-red-700';
+                    return;
+                }
+
+                let resultsHtml = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const hoTen = data.HoTen;
+                    const maHS = data.MaHS;
+                    const lop = data.Lop;
+                    // Chuẩn hóa tên để truyền vào hàm selectStudent
+                    resultsHtml += `<div onclick="selectStudent('${maHS}', '${hoTen.replace(/'/g, "\\'")}', '${lop}')" class="p-2 text-sm hover:bg-indigo-50 cursor-pointer border-b last:border-b-0">${hoTen} (${lop} - ${maHS})</div>`;
+                });
+                searchResults.innerHTML = resultsHtml;
+
+            } catch (error) {
+                console.error("Lỗi khi tìm kiếm học sinh:", error);
+                if (error.message.includes("index")) {
+                    searchResults.innerHTML = `<div class="p-2 text-sm text-red-600">Lỗi: Cần tạo Index cho truy vấn (AcademicYear, Lop, HoTen). Vui lòng kiểm tra Console (F12).</div>`;
+                } else {
+                     searchResults.innerHTML = `<div class="p-2 text-sm text-red-600">Lỗi: ${error.message}</div>`;
+                }
+            }
+        }
+        
+        function updateViolationPoints() {
+            const violationTypeSelect = document.getElementById('violation-type');
+            const pointsInput = document.getElementById('violation-points');
+            const selectedValue = violationTypeSelect.value;
+            let points = 0;
+            let readonly = true;
+
+            if (selectedValue === 'ViPhamKhac') {
+                points = -3; // Mặc định điểm trừ khi chọn vi phạm khác
+                readonly = false;
+            } else if (selectedValue === 'DiemCong') {
+                points = 5; // Mặc định điểm cộng khi chọn điểm cộng
+                readonly = false;
+            } else if (selectedValue) {
+                // Lấy điểm từ dataset của option nếu là luật vi phạm thường
+                const selectedOption = violationTypeSelect.options[violationTypeSelect.selectedIndex];
+                points = parseInt(selectedOption.dataset.points) || 0;
+            }
+
+            pointsInput.value = points;
+            pointsInput.readOnly = readonly;
+            pointsInput.style.backgroundColor = readonly ? '#f3f4f6' : '#fff';
+        }
+        
+        function clearViolationForm() {
+            document.getElementById('violation-student').value = '';
+            document.getElementById('edit-violation-id').value = '';
+            document.getElementById('edit-original-points').value = '0';
+            document.getElementById('violation-class').value = '';
+            document.getElementById('student-name-search').value = '';
+            document.getElementById('violation-type').value = '';
+            document.getElementById('violation-points').value = '0';
+            document.getElementById('violation-points').readOnly = true;
+            document.getElementById('violation-points').style.backgroundColor = '#f3f4f6';
+            document.getElementById('violation-note').value = '';
+            document.getElementById('student-name-display').innerHTML = '<span class="text-gray-500 italic">Vui lòng tìm và chọn Tên HS ở trên.</span>';
+            document.getElementById('student-name-display').className = 'mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm font-semibold text-gray-700';
+            document.getElementById('violation-status').textContent = '';
+        }
+        
+        // Thêm một biến cờ hiệu (flag) ở bên ngoài hàm để khóa trạng thái lưu
+        let isSavingViolation = false;
+
+        async function recordViolation() {
+            // 1. CHỐNG SPAM CLICK: Nếu đang lưu thì chặn luôn, không cho chạy tiếp
+            if (isSavingViolation) return; 
+            if (!db) return;
+
+            const studentID = document.getElementById('violation-student').value;
+            const className = document.getElementById('violation-class').value;
+            const violationTypeSelect = document.getElementById('violation-type');
+            const date = document.getElementById('violation-date').value;
+            const points = parseInt(document.getElementById('violation-points').value);
+            const note = document.getElementById('violation-note').value.trim();
+            const statusDiv = document.getElementById('violation-status');
+            const editId = document.getElementById('edit-violation-id').value;
+            const originalPoints = parseInt(document.getElementById('edit-original-points').value);
+            
+            let typeName = '';
+            if (violationTypeSelect.value === 'ViPhamKhac') {
+                typeName = `Vi phạm khác (Tùy chỉnh: ${points})`;
+            } else if (violationTypeSelect.value === 'DiemCong') {
+                typeName = `Điểm Cộng (Việc tốt: ${points})`;
+            } else if (violationTypeSelect.value) {
+                typeName = violationTypeSelect.options[violationTypeSelect.selectedIndex].textContent.split(' (')[0];
+            }
+
+            if (!studentID || !className || !violationTypeSelect.value || isNaN(points) || !date) {
+                statusDiv.textContent = "Vui lòng nhập đủ thông tin: Mã HS, Lớp, Loại Vi Phạm và Ngày.";
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-semibold';
+                return;
+            }
+
+            // 2. KHÓA GIAO DIỆN KHI ĐỦ ĐIỀU KIỆN LƯU
+            isSavingViolation = true; // Bật cờ khóa
+            
+            // Tìm các nút bấm có trong khu vực Lưu vi phạm và làm mờ nó đi
+            const actionButtons = document.querySelectorAll('button'); 
+            const saveBtn = Array.from(actionButtons).find(btn => btn.textContent.includes('Lưu Vi Phạm') || btn.textContent.includes('Đang lưu'));
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '⏳ Đang lưu...';
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+
+            const studentDocId = `${studentID}|${CURRENT_ACADEMIC_YEAR}`;
+            const studentRef = db.collection(mainCollection).doc(studentDocId);
+            let studentName = document.getElementById('student-name-search').value;
+
+            statusDiv.textContent = 'Đang xử lý trên máy chủ...';
+            statusDiv.className = 'mt-4 text-sm text-blue-600 font-semibold animate-pulse';
+
+            try {
+                await db.runTransaction(async (transaction) => {
+                    const studentDoc = await transaction.get(studentRef);
+                    if (!studentDoc.exists) {
+                        throw new Error(`Không tìm thấy Học sinh ${studentID} trong năm học ${CURRENT_ACADEMIC_YEAR}.`);
+                    }
+
+                    const studentData = studentDoc.data();
+                    const currentPoints = studentData.CurrentPoints !== undefined ? studentData.CurrentPoints : 100;
+
+                    const violationData = {
+                        studentID: studentID,
+                        studentName: studentName,
+                        class: className,
+                        type: typeName,
+                        points: points,
+                        date: firebase.firestore.Timestamp.fromDate(new Date(date)),
+                        note: note,
+                        academicYear: CURRENT_ACADEMIC_YEAR,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    if (editId) {
+                        // --- LOGIC CẬP NHẬT ---
+                        const violationRef = db.collection(violationCollection).doc(editId);
+                        const pointDifference = points - originalPoints; 
+                        const newTotalPoints = currentPoints + pointDifference;
+
+                        transaction.update(studentRef, { 
+                            CurrentPoints: newTotalPoints,
+                        });
+                        
+                        delete violationData.timestamp; 
+                        transaction.update(violationRef, violationData);
+
+                    } else {
+                        // --- LOGIC TẠO MỚI ---
+                        const newTotalPoints = currentPoints + points;
+
+                        transaction.update(studentRef, { 
+                            CurrentPoints: newTotalPoints, 
+                            LastViolationDate: firebase.firestore.FieldValue.serverTimestamp(),
+                            ViolationCount: firebase.firestore.FieldValue.increment(1) 
+                        });
+                        
+                        const violationId = `${studentID}_${new Date().getTime()}`;
+                        transaction.set(db.collection(violationCollection).doc(violationId), violationData);
+                    }
+                });
+
+                statusDiv.textContent = `✅ ${editId ? 'Cập nhật' : 'Ghi nhận'} vi phạm thành công!`;
+                statusDiv.className = 'mt-4 text-sm text-green-600 font-bold';
+                clearViolationForm();
+
+            } catch (error) {
+                console.error("Lỗi khi ghi nhận vi phạm:", error);
+                // Xử lý riêng lỗi 429 để thông báo thân thiện hơn
+                if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('Too Many Requests')) {
+                    statusDiv.textContent = `❌ Hệ thống đang quá tải (hoặc hết lượt miễn phí trong ngày). Vui lòng đợi 1 lát rồi thử lại!`;
+                } else {
+                    statusDiv.textContent = `❌ Lỗi: ${error.message}`;
+                }
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-bold';
+            } finally {
+                // 3. MỞ KHÓA GIAO DIỆN KHI XONG (Dù thành công hay thất bại)
+                isSavingViolation = false; // Tắt cờ khóa
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = 'Lưu Vi Phạm';
+                    saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+        function loadRecentViolationsListener() {
+            if (!db) return;
+            const tableBody = document.getElementById('recent-violations-table');
+
+            // Hủy listener cũ nếu có
+            if (recentViolationsListener) {
+                recentViolationsListener();
+            }
+
+            const today = new Date();
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+
+            // Listener để nghe thay đổi theo thời gian thực
+            recentViolationsListener = db.collection(violationCollection)
+                .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                .where('date', '>=', firebase.firestore.Timestamp.fromDate(sevenDaysAgo))
+                .orderBy('date', 'desc')
+                .limit(20) // Giới hạn 20 vi phạm gần nhất
+                .onSnapshot(snapshot => {
+                    tableBody.innerHTML = '';
+                    if (snapshot.empty) {
+                        tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">Không có vi phạm nào trong 7 ngày qua.</td></tr>`;
+                        return;
+                    }
+                    
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const date = data.date.toDate().toLocaleDateString('vi-VN');
+                        const row = tableBody.insertRow();
+                        
+                        row.innerHTML = `
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${date}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${data.studentName}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${data.class}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${data.type}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm font-semibold ${data.points < 0 ? 'text-red-600' : 'text-green-600'}">${data.points}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm font-medium">
+                                <button onclick="editRecentViolation('${doc.id}', '${data.studentID}', '${data.studentName.replace(/'/g, "\\'")}', '${data.class}', '${data.date.toDate().toISOString().split('T')[0]}', '${data.type.replace(/'/g, "\\'")}', ${data.points}, '${(data.note || '').replace(/'/g, "\\'")}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
+                                <button onclick="deleteRecentViolation('${doc.id}', '${data.studentID}', ${data.points})" class="ml-4 text-red-600 hover:text-red-900">Xoá</button>
+                            </td>
+                        `;
+                    });
+
+                }, error => {
+                    console.error("Lỗi khi tải danh sách vi phạm gần đây:", error);
+                    tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-red-600">Lỗi tải dữ liệu.</td></tr>`;
+                });
+        }
+        
+        function editRecentViolation(id, studentID, studentName, className, date, typeName, points, note) {
+            // Tải thông tin vào form
+            document.getElementById('edit-violation-id').value = id;
+            document.getElementById('edit-original-points').value = points;
+            document.getElementById('violation-student').value = studentID;
+            document.getElementById('student-name-search').value = studentName;
+            document.getElementById('violation-class').value = className;
+            document.getElementById('violation-date').value = date;
+            document.getElementById('violation-note').value = note;
+            document.getElementById('violation-points').value = points;
+            
+            // Xử lý loại vi phạm (cần cải tiến để chọn đúng option)
+            const violationTypeSelect = document.getElementById('violation-type');
+            let found = false;
+            for (let i = 0; i < violationTypeSelect.options.length; i++) {
+                const optionText = violationTypeSelect.options[i].textContent;
+                const optionValue = violationTypeSelect.options[i].value;
+
+                if (optionText.includes(typeName) || optionText.startsWith(typeName) || optionValue === id) {
+                    violationTypeSelect.value = optionValue;
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                 violationTypeSelect.value = ''; // Không tìm thấy loại vi phạm khớp
+                 // Nếu là vi phạm khác/điểm cộng, có thể cần phân tích typeName để chọn đúng
+                 if (typeName.includes('Vi phạm khác')) {
+                    violationTypeSelect.value = 'ViPhamKhac';
+                    document.getElementById('violation-points').readOnly = false;
+                    document.getElementById('violation-points').style.backgroundColor = '#fff';
+                 } else if (typeName.includes('Điểm Cộng')) {
+                    violationTypeSelect.value = 'DiemCong';
+                    document.getElementById('violation-points').readOnly = false;
+                    document.getElementById('violation-points').style.backgroundColor = '#fff';
+                 }
+            } else {
+                 document.getElementById('violation-points').readOnly = true;
+                 document.getElementById('violation-points').style.backgroundColor = '#f3f4f6';
+            }
+
+            // Cập nhật hiển thị tên HS
+            document.getElementById('student-name-display').textContent = `${studentName} (${className} - ${studentID})`;
+            document.getElementById('student-name-display').className = 'mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-sm font-semibold text-gray-700';
+
+            // Cuộn lên đầu trang
+            document.getElementById('record-violation').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function deleteRecentViolation(id, studentID, points) {
+            if (!confirm("Bạn có chắc chắn muốn XÓA vi phạm này? Điểm của học sinh sẽ được hoàn lại.")) return;
+            
+            const studentDocId = `${studentID}|${CURRENT_ACADEMIC_YEAR}`;
+            const studentRef = db.collection(mainCollection).doc(studentDocId);
+            const violationRef = db.collection(violationCollection).doc(id);
+
+            try {
+                await db.runTransaction(async (transaction) => {
+                    const studentDoc = await transaction.get(studentRef);
+                    if (!studentDoc.exists) {
+                        throw new Error(`Không tìm thấy Học sinh ${studentID} trong năm học ${CURRENT_ACADEMIC_YEAR}. Không thể hoàn điểm.`);
+                    }
+
+                    const studentData = studentDoc.data();
+                    const currentPoints = studentData.CurrentPoints !== undefined ? studentData.CurrentPoints : 100;
+
+                    // Điểm mới = Điểm hiện tại - Điểm vi phạm (vì points đã là số âm/dương)
+                    const newTotalPoints = currentPoints - points; 
+
+                    transaction.update(studentRef, { 
+                        CurrentPoints: newTotalPoints,
+                        ViolationCount: firebase.firestore.FieldValue.increment(-1) // Giảm số lần vi phạm
+                    });
+
+                    transaction.delete(violationRef);
+                });
+
+                alert("Xóa vi phạm thành công và đã hoàn lại điểm.");
+            } catch (error) {
+                console.error("Lỗi khi xóa vi phạm:", error);
+                alert("Lỗi khi xóa: " + error.message);
+            }
+        }
+
+
+        // ***************************************************************
+        // CÁC HÀM CHO TRANG THỐNG KÊ (STATISTICS)
+        // ***************************************************************
+        
+        function setupChartPlaceholders() {
+            // Đảm bảo canvas trống khi chuyển tab
+            const rankingCtx = document.getElementById('rankingChart').getContext('2d');
+            const absenceCtx = document.getElementById('absenceChart').getContext('2d');
+            const conductCtx = document.getElementById('conductRatioChart').getContext('2d'); // NEW
+            
+            [rankingCtx, absenceCtx, conductCtx].forEach(ctx => {
+                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                 ctx.font = '16px Inter';
+                 ctx.fillStyle = '#9ca3af';
+                 ctx.textAlign = 'center';
+                 ctx.fillText("Đang tải dữ liệu...", ctx.canvas.width / 2, ctx.canvas.height / 2);
+            });
+            document.getElementById('ranking-table-body').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">Đang tải dữ liệu...</td></tr>`;
+            document.getElementById('special-students-table-body').innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">Đang tải dữ liệu...</td></tr>`; // NEW
+        }
+
+        function toggleDateInputs() {
+            const timeFrame = document.getElementById('stats-time-frame').value;
+            const customDiv = document.getElementById('custom-date-inputs');
+            if (timeFrame === 'custom') {
+                customDiv.classList.remove('hidden');
+            } else {
+                customDiv.classList.add('hidden');
+            }
+        }
+        
+        // --- Hàm Helper Xếp Loại Hạnh Kiểm
+        function getConductGrade(totalPoints) {
+            if (totalPoints >= 90) return 'Tốt';
+            if (totalPoints >= 70) return 'Khá';
+            if (totalPoints >= 50) return 'TB';
+            return 'Yếu';
+        }
+
+        // --- Hàm Mới: Vẽ Biểu Đồ Tỷ Lệ Xếp Loại Hạnh Kiểm ---
+        async function drawConductGradeRatioChart() {
+            if (!db) return;
+            try {
+                // Lấy tất cả học sinh đang hoạt động (scope: Cả trường, vì điểm là tích lũy)
+                const allStudentsSnapshot = await db.collection(mainCollection)
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active')
+                    .get();
+                
+                const gradeCounts = { 'Tốt': 0, 'Khá': 0, 'TB': 0, 'Yếu': 0 };
+                let totalActiveStudents = 0;
+
+                allStudentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const points = data.CurrentPoints !== undefined ? data.CurrentPoints : 100;
+                    const grade = getConductGrade(points);
+                    
+                    if (gradeCounts.hasOwnProperty(grade)) {
+                        gradeCounts[grade]++;
+                        totalActiveStudents++;
+                    }
+                });
+                
+                if (totalActiveStudents === 0) {
+                    const conductCtx = document.getElementById('conductRatioChart').getContext('2d');
+                    if (conductRatioChart) conductRatioChart.destroy();
+                    conductCtx.font = '16px Inter';
+                    conductCtx.fillStyle = '#9ca3af';
+                    conductCtx.textAlign = 'center';
+                    conductCtx.fillText("Chưa có dữ liệu HS", conductCtx.canvas.width / 2, conductCtx.canvas.height / 2);
+                    return;
+                }
+
+                const labels = Object.keys(gradeCounts).map(key => `${key} (${(gradeCounts[key] / totalActiveStudents * 100).toFixed(1)}%)`);
+                const data = Object.values(gradeCounts);
+                const backgroundColors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444']; // Green (Tốt), Blue (Khá), Yellow (TB), Red (Yếu)
+
+                if (conductRatioChart) conductRatioChart.destroy();
+                const conductCtx = document.getElementById('conductRatioChart').getContext('2d');
+                conductRatioChart = new Chart(conductCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Tỷ lệ Xếp Loại Hạnh Kiểm',
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            title: { display: false }
+                        }
+                    }
+                });
+            } catch (error) {
+                 console.error("Lỗi khi vẽ biểu đồ tỷ lệ hạnh kiểm:", error);
+                 const conductCtx = document.getElementById('conductRatioChart').getContext('2d');
+                 if (conductRatioChart) conductRatioChart.destroy();
+                 conductCtx.font = '16px Inter';
+                 conductCtx.fillStyle = '#ef4444';
+                 conductCtx.textAlign = 'center';
+                 conductCtx.fillText("Lỗi tải dữ liệu", conductCtx.canvas.width / 2, conductCtx.canvas.height / 2);
+            }
+        }
+
+        // --- Hàm Mới: Tải Danh Sách Học Sinh Cá Biệt ---
+        async function loadSpecialStudentsList() {
+            if (!db) return;
+            const tableBody = document.getElementById('special-students-table-body');
+            tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-blue-600">Đang tải danh sách học sinh cá biệt...</td></tr>`;
+
+            try {
+                // Tiêu chí: Status == 'active' và CurrentPoints < 80 
+                const snapshot = await db.collection(mainCollection)
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active')
+                    .orderBy('CurrentPoints', 'asc') 
+                    .get();
+
+                if (snapshot.empty) {
+                    tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">Không tìm thấy học sinh đang hoạt động nào.</td></tr>`;
+                    return;
+                }
+
+                const specialStudents = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const points = data.CurrentPoints !== undefined ? data.CurrentPoints : 100;
+                    if (points < 80) { // Điểm dưới Khá
+                        specialStudents.push({
+                            MaHS: data.MaHS,
+                            HoTen: data.HoTen,
+                            Lop: data.Lop,
+                            Points: points,
+                            Conduct: getConductGrade(points),
+                            ViolationCount: data.ViolationCount || 0
+                        });
+                    }
+                });
+
+                if (specialStudents.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-green-600">🎉 Hiện tại không có học sinh nào có điểm dưới 80.</td></tr>`;
+                    return;
+                }
+
+                let html = '';
+                specialStudents.forEach((s) => {
+                    const pointClass = s.Points < 50 ? 'text-red-600 font-bold' : s.Points < 70 ? 'text-yellow-600 font-bold' : 'text-indigo-600';
+                    const conductClass = s.Conduct === 'Yếu' ? 'bg-red-100 text-red-700 font-bold' : s.Conduct === 'TB' ? 'bg-yellow-100 text-yellow-700 font-bold' : 'bg-blue-100 text-blue-700 font-bold';
+                    
+                    html += `
+                        <tr>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500">${s.MaHS}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${s.HoTen}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500">${s.Lop}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm ${pointClass}">${s.Points.toFixed(1)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm"><span class="p-1 rounded ${conductClass}">${s.Conduct}</span></td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500">${s.ViolationCount}</td>
+                        </tr>
+                    `;
+                });
+                tableBody.innerHTML = html;
+
+            } catch (error) {
+                console.error("Lỗi khi tải danh sách học sinh cá biệt:", error);
+                tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-red-600">❌ Lỗi tải dữ liệu: ${error.message}</td></tr>`;
+            }
+        }
+
+        async function drawCharts() {
+            if (!db) return;
+
+            setupChartPlaceholders();
+
+            const timeFrame = document.getElementById('stats-time-frame').value;
+            const gradeFilter = document.getElementById('stats-grade').value;
+            let startDateFilter;
+            let endDateFilter;
+            const initialScore = 100;
+            let isCumulativeRanking = false; 
+
+            // 1. XỬ LÝ KHOẢNG THỜI GIAN
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+
+            if (timeFrame === 'weekly') {
+                startDateFilter = new Date(todayStart);
+                startDateFilter.setDate(startDateFilter.getDate() - 7);
+                endDateFilter = new Date(); 
+            } else if (timeFrame === 'monthly') {
+                startDateFilter = new Date(todayStart);
+                startDateFilter.setDate(startDateFilter.getDate() - 30);
+                endDateFilter = new Date();
+            } else if ((timeFrame === 'semester' || timeFrame === 'semester2')) {
+                // Giả định Học kỳ I bắt đầu từ tháng 9 năm bắt đầu năm học
+                const startYear = parseInt(CURRENT_ACADEMIC_YEAR.split('-')[0]);
+                startDateFilter = new Date(startYear, 8, 1); // Tháng 9 (index 8)
+                endDateFilter = new Date();
+            } else if (timeFrame === 'yearly') {
+                const startYear = parseInt(CURRENT_ACADEMIC_YEAR.split('-')[0]);
+                startDateFilter = new Date(startYear, 7, 1); // Tháng 8 (index 7)
+                endDateFilter = new Date();
+                isCumulativeRanking = true; // Xếp hạng cả năm dùng điểm tích lũy CurrentPoints
+            } else if (timeFrame === 'custom') {
+                const startDateStr = document.getElementById('start-date-select').value;
+                const endDateStr = document.getElementById('end-date-select').value;
+                if (!startDateStr || !endDateStr) {
+                    console.log("Vui lòng chọn cả Ngày Bắt Đầu và Ngày Kết Thúc cho khoảng thời gian tùy chỉnh.");
+                    return; 
+                }
+                startDateFilter = new Date(startDateStr);
+                endDateFilter = new Date(endDateStr);
+                endDateFilter.setDate(endDateFilter.getDate() + 1); // Để bao gồm cả ngày cuối
+            }
+
+
+            try {
+                // 2. Lấy tất cả học sinh đang hoạt động (Lọc theo Khối nếu có)
+                let studentsQuery = db.collection(mainCollection)
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active');
+                
+                if (gradeFilter !== 'all') {
+                     studentsQuery = studentsQuery.where('Khoi', '==', parseInt(gradeFilter));
+                }
+                const studentsSnapshot = await studentsQuery.get();
+                
+
+                // 3. Lấy tất cả vi phạm trong KHUNG THỜI GIAN ĐƯỢC CHỌN
+                let violationsQuery = db.collection(violationCollection)
+                    .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('date', '>=', firebase.firestore.Timestamp.fromDate(startDateFilter))
+                    .where('date', '<=', firebase.firestore.Timestamp.fromDate(endDateFilter));
+                const violationsSnapshot = await violationsQuery.get();
+
+                // 4. Tính toán Điểm Tích Lũy / Điểm Rèn Luyện cho từng học sinh
+                const studentPointsMap = {}; 
+                studentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // Nếu là xếp hạng tích lũy (Cả Năm), dùng CurrentPoints. Ngược lại, dùng điểm ban đầu 100.
+                    let currentPoints = isCumulativeRanking && data.CurrentPoints !== undefined ? data.CurrentPoints : initialScore;
+                    studentPointsMap[data.MaHS] = currentPoints;
+                });
+
+                // Áp dụng điểm vi phạm chỉ cho các chế độ xếp hạng KHÔNG tích lũy (weekly, monthly, semester, custom)
+                if (!isCumulativeRanking) {
+                    violationsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const studentID = data.studentID;
+                        const points = data.points;
+                        if (studentPointsMap[studentID] !== undefined) {
+                            studentPointsMap[studentID] += points;
+                        }
+                    });
+                }
+                
+                // 5. Tính điểm TB theo Lớp
+                const classPoints = {};
+                studentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const lop = data.Lop;
+                    const studentID = data.MaHS;
+                    const khoi = data.Khoi ? data.Khoi.toString() : '';
+
+                    if (data.Status === 'active' && (gradeFilter === 'all' || khoi === gradeFilter)) {
+                        if (!classPoints[lop]) {
+                            classPoints[lop] = { totalPoints: 0, count: 0, grade: khoi };
+                        }
+                        const points = studentPointsMap[studentID] !== undefined ? studentPointsMap[studentID] : initialScore;
+                        classPoints[lop].totalPoints += points;
+                        classPoints[lop].count++;
+                    }
+                });
+
+                const rankingData = Object.keys(classPoints)
+                    .map(lop => ({
+                        lop: lop,
+                        points: classPoints[lop].count > 0 ? classPoints[lop].totalPoints / classPoints[lop].count : 0,
+                        grade: classPoints[lop].grade
+                    }))
+                    .sort((a, b) => b.points - a.points); // Sắp xếp giảm dần theo điểm
+
+                // 6. Cập nhật Biểu đồ Xếp Hạng Lớp
+                const top10 = rankingData.slice(0, 10);
+                const labels = top10.map(item => item.lop);
+                const data = top10.map(item => item.points.toFixed(2));
+                
+                const backgroundColors = labels.map((_, index) => {
+                    // Tạo màu sắc gradient hoặc màu cố định cho 10 lớp
+                    const hue = 180 - (index * 15); // Màu xanh dương -> xanh lá
+                    return `hsl(${hue}, 70%, 50%)`;
+                });
+
+                if (rankingChart) rankingChart.destroy();
+                const rankingCtx = document.getElementById('rankingChart').getContext('2d');
+                rankingChart = new Chart(rankingCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Điểm Rèn Luyện TB Lớp (${getVietnameseTimeFrameLabel(timeFrame)})`,
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderColor: backgroundColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true, max: 100 }
+                        }
+                    }
+                });
+
+                // Cập nhật Bảng Xếp Hạng
+                const tableBody = document.getElementById('ranking-table-body');
+                tableBody.innerHTML = '';
+                rankingData.forEach((item, index) => {
+                    const row = tableBody.insertRow();
+                    row.className = index < 3 ? 'bg-yellow-50 font-bold' : '';
+                    row.innerHTML = `
+                        <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-sm text-indigo-600">${item.lop}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500">${item.grade}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-sm font-semibold ${item.points < 70 ? 'text-red-600' : 'text-green-600'}">${item.points.toFixed(2)}</td>
+                    `;
+                });
+
+                // --- NEW: Cập nhật Biểu đồ Tỷ lệ Xếp loại Hạnh Kiểm ---
+                await drawConductGradeRatioChart(); 
+                
+                // --- NEW: Tải Danh sách Học sinh Cá Biệt ---
+                await loadSpecialStudentsList();
+
+                // 7. Cập nhật Biểu đồ Trạng thái (Chỉ dùng dữ liệu học sinh)
+                const statusCounts = { active: 0, dropped: 0, transferred: 0 };
+                const allStudentsSnapshot = await db.collection(mainCollection).where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR).get();
+                allStudentsSnapshot.forEach(doc => {
+                    const status = doc.data().Status || 'active';
+                    if (statusCounts.hasOwnProperty(status)) {
+                        statusCounts[status]++;
+                    }
+                });
+                
+                const absenceLabels = ['Đang học', 'Nghỉ học', 'Chuyển trường'];
+                const absenceData = [statusCounts.active, statusCounts.dropped, statusCounts.transferred];
+                const absenceBackgroundColors = ['#4f46e5', '#ef4444', '#f59e0b'];
+                
+                if (absenceChart) absenceChart.destroy();
+                const absenceCtx = document.getElementById('absenceChart').getContext('2d');
+                absenceChart = new Chart(absenceCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: absenceLabels,
+                        datasets: [{
+                            label: 'Số lượng học sinh',
+                            data: absenceData,
+                            backgroundColor: absenceBackgroundColors,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: { responsive: true }
+                });
+
+
+            } catch (error) {
+                console.error("Lỗi khi vẽ biểu đồ:", error);
+                let displayError = error.message;
+                if (error.message && error.message.includes('The query requires an index')) {
+                    displayError = `The query requires an index. VUI LÒNG MỞ Console (F12), nhấp vào link Firebase để tạo Index cần thiết cho: (academicYear: ASC, date: ASC). Sau đó tải lại trang.`;
+                }
+                document.getElementById('ranking-table-body').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-sm text-red-600">${displayError}</td></tr>`;
+            }
+        }
+        
+        // ... (rest of the functions like exportRankingToExcel, calculateConductGrade, etc. remain the same) ...
+
+        async function exportRankingToExcel() {
+            if (!db) return;
+            const timeFrame = document.getElementById('stats-time-frame').value;
+            const gradeFilter = document.getElementById('stats-grade').value;
+            let startDateFilter;
+            let endDateFilter;
+            const initialScore = 100;
+            let isCumulativeRanking = false; 
+            
+            // Xử lý logic tính toán ngày tháng tương tự drawCharts
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+
+            if (timeFrame === 'yearly') {
+                const startYear = parseInt(CURRENT_ACADEMIC_YEAR.split('-')[0]);
+                startDateFilter = new Date(startYear, 7, 1); 
+                endDateFilter = new Date();
+                isCumulativeRanking = true; 
+            } else if (timeFrame === 'weekly') {
+                startDateFilter = new Date(todayStart);
+                startDateFilter.setDate(startDateFilter.getDate() - 7);
+                endDateFilter = new Date(); 
+            } else if (timeFrame === 'monthly') {
+                startDateFilter = new Date(todayStart);
+                startDateFilter.setDate(startDateFilter.getDate() - 30);
+                endDateFilter = new Date();
+            } else if ((timeFrame === 'semester' || timeFrame === 'semester2')) {
+                const startYear = parseInt(CURRENT_ACADEMIC_YEAR.split('-')[0]);
+                startDateFilter = new Date(startYear, 8, 1); 
+                endDateFilter = new Date();
+            } else if (timeFrame === 'custom') {
+                const startDateStr = document.getElementById('start-date-select').value;
+                const endDateStr = document.getElementById('end-date-select').value;
+                if (!startDateStr || !endDateStr) {
+                    alert("Vui lòng chọn cả Ngày Bắt Đầu và Ngày Kết Thúc cho khoảng thời gian tùy chỉnh.");
+                    return; 
+                }
+                startDateFilter = new Date(startDateStr);
+                endDateFilter = new Date(endDateStr);
+                endDateFilter.setDate(endDateFilter.getDate() + 1);
+            } else {
+                 return; // Không có gì để xuất nếu không chọn
+            }
+
+
+            try {
+                // Lấy tất cả học sinh đang hoạt động (Lọc theo Khối nếu có)
+                let studentsQuery = db.collection(mainCollection)
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active');
+                
+                if (gradeFilter !== 'all') {
+                     studentsQuery = studentsQuery.where('Khoi', '==', parseInt(gradeFilter));
+                }
+                const studentsSnapshot = await studentsQuery.get();
+                
+
+                // Lấy tất cả vi phạm trong KHUNG THỜI GIAN ĐƯỢC CHỌN
+                let violationsQuery = db.collection(violationCollection)
+                    .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('date', '>=', firebase.firestore.Timestamp.fromDate(startDateFilter))
+                    .where('date', '<=', firebase.firestore.Timestamp.fromDate(endDateFilter));
+                const violationsSnapshot = await violationsQuery.get();
+
+                // Tính toán Điểm Tích Lũy / Điểm Rèn Luyện cho từng học sinh
+                const studentPointsMap = {}; 
+                studentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    let currentPoints = isCumulativeRanking && data.CurrentPoints !== undefined ? data.CurrentPoints : initialScore;
+                    studentPointsMap[data.MaHS] = currentPoints;
+                });
+
+                if (!isCumulativeRanking) {
+                    violationsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const studentID = data.studentID;
+                        const points = data.points;
+                        if (studentPointsMap[studentID] !== undefined) {
+                            studentPointsMap[studentID] += points;
+                        }
+                    });
+                }
+                
+                // Tính điểm TB theo Lớp
+                const classPoints = {};
+                studentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const lop = data.Lop;
+                    const studentID = data.MaHS;
+                    const khoi = data.Khoi ? data.Khoi.toString() : '';
+
+                    if (data.Status === 'active' && (gradeFilter === 'all' || khoi === gradeFilter)) {
+                        if (!classPoints[lop]) {
+                            classPoints[lop] = { totalPoints: 0, count: 0, grade: khoi };
+                        }
+                        const points = studentPointsMap[studentID] !== undefined ? studentPointsMap[studentID] : initialScore;
+                        classPoints[lop].totalPoints += points;
+                        classPoints[lop].count++;
+                    }
+                });
+
+                const rankingData = Object.keys(classPoints)
+                    .map(lop => ({
+                        'Lớp': lop,
+                        'Khối': classPoints[lop].grade,
+                        'Điểm Rèn Luyện TB': classPoints[lop].count > 0 ? classPoints[lop].totalPoints / classPoints[lop].count : 0,
+                    }))
+                    .sort((a, b) => b['Điểm Rèn Luyện TB'] - a['Điểm Rèn Luyện TB']); 
+
+                // Thêm cột Hạng
+                const dataToExport = rankingData.map((item, index) => ({
+                    'Hạng': index + 1,
+                    ...item,
+                    'Điểm Rèn Luyện TB': item['Điểm Rèn Luyện TB'].toFixed(2)
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(dataToExport);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "XepHangLop");
+
+                const timeFrameText = document.getElementById('stats-time-frame').options[document.getElementById('stats-time-frame').selectedIndex].text;
+                const gradeFilterText = document.getElementById('stats-grade').value === 'all' ? 'Toàn Trường' : `Khối ${document.getElementById('stats-grade').value}`;
+
+                XLSX.utils.sheet_add_aoa(ws, [
+                    [`BÁO CÁO XẾP HẠNG THI ĐUA LỚP (${timeFrameText})`],
+                    [`Năm học: ${CURRENT_ACADEMIC_YEAR} - Phạm vi: ${gradeFilterText}`],
+                    [`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`],
+                ], { origin: "A1" });
+                
+                const fileName = `XepHangLop_${CURRENT_ACADEMIC_YEAR}_${getVietnameseTimeFrameLabel(timeFrame)}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLSX.writeFile(wb, fileName);
+
+            } catch (error) {
+                console.error("Lỗi khi xuất Excel:", error);
+                alert("Lỗi khi xuất file Excel: " + error.message);
+            }
+        }
+
+        // ***************************************************************
+        // CÁC HÀM CHO TRANG HẠNH KIỂM (CONDUCT-GRADE)
+        // ***************************************************************
+        
+        async function calculateConductGrade() {
+            if (!db) return;
+            const semester = document.getElementById('semester-select').value;
+            const resultsDiv = document.getElementById('conduct-results');
+            resultsDiv.innerHTML = `<p class="text-sm text-blue-600 italic">Đang tính toán ${semester}...</p>`;
+            currentConductResults = [];
+
+            try {
+                // 1. Lấy tất cả học sinh đang hoạt động
+                const studentsRef = db.collection(mainCollection);
+                const studentsSnapshot = await studentsRef
+                    .where('AcademicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .where('Status', '==', 'active')
+                    .get();
+
+                if (studentsSnapshot.empty) {
+                    throw new Error("Không tìm thấy học sinh đang hoạt động trong năm học này.");
+                }
+
+                // 2. Lấy tất cả vi phạm (để tính lại điểm)
+                const violationsRef = db.collection(violationCollection);
+                const violationsSnapshot = await violationsRef
+                    .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .get();
+
+                // 3. Tính toán lại tổng điểm vi phạm cho từng học sinh
+                const studentViolationPoints = {}; // {MaHS: totalPoints}
+                studentsSnapshot.forEach(doc => {
+                    studentViolationPoints[doc.data().MaHS] = 0; // Khởi tạo 0
+                });
+
+                violationsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (studentViolationPoints.hasOwnProperty(data.studentID)) {
+                        studentViolationPoints[data.studentID] += data.points;
+                    }
+                });
+
+                // 4. Tính điểm cuối cùng và xếp loại
+                const conductResults = [];
+                studentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const maHs = data.MaHS;
+                    // Lấy điểm vi phạm đã tính toán
+                    const totalPoints = (data.InitialPoints || 100) + (studentViolationPoints[maHs] || 0);
+                    
+                    const conduct = getConductGrade(totalPoints); // Sử dụng hàm mới
+
+                    conductResults.push({
+                        MaHS: maHs,
+                        HoTen: data.HoTen,
+                        Lop: data.Lop,
+                        Khoi: data.Khoi,
+                        TotalPoints: totalPoints,
+                        Conduct: conduct
+                    });
+                });
+
+                currentConductResults = conductResults;
+                renderConductTable(conductResults);
+
+            } catch (error) {
+                console.error("Lỗi khi tính toán hạnh kiểm:", error);
+                resultsDiv.innerHTML = `<p class="text-sm text-red-600 font-bold">❌ Lỗi: ${error.message}</p>`;
+            }
+        }
+
+        function renderConductTable(students) {
+            students.sort((a, b) => {
+                if (a.Lop < b.Lop) return -1;
+                if (a.Lop > b.Lop) return 1;
+                if (a.HoTen < b.HoTen) return -1;
+                if (a.HoTen > b.HoTen) return 1;
+                return 0;
+            });
+
+            let html = `
+                <h4 class="font-semibold mt-4 text-gray-700">Kết quả Xếp Loại Hạnh Kiểm (Tổng: ${students.length} HS):</h4>
+                <div class="table-container border rounded-lg mt-2">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">STT</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Mã HS</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Họ Tên</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Lớp</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Điểm Cả Năm</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Hạnh Kiểm</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            students.forEach((s, index) => {
+                const conductClass = s.Conduct === 'Tốt' ? 'text-green-600 font-bold' : 
+                                     s.Conduct === 'Khá' ? 'text-blue-600 font-bold' : 
+                                     s.Conduct === 'TB' ? 'text-yellow-600 font-bold' : 
+                                     'text-red-600 font-bold';
+                html += `
+                    <tr>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${s.MaHS}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${s.HoTen}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${s.Lop}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${s.TotalPoints.toFixed(1)}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm ${conductClass}">${s.Conduct}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table></div>`;
+            document.getElementById('conduct-results').innerHTML = html;
+        }
+
+        function toggleExportFilters() {
+            const scope = document.getElementById('export-scope').value;
+            document.getElementById('export-grade-div').classList.add('hidden');
+            document.getElementById('export-class-div').classList.add('hidden');
+
+            if (scope === 'grade') {
+                document.getElementById('export-grade-div').classList.remove('hidden');
+            } else if (scope === 'class') {
+                document.getElementById('export-class-div').classList.remove('hidden');
+            }
+        }
+
+        function exportConductResults() {
+            if (currentConductResults.length === 0) {
+                alert("Vui lòng nhấn 'Thực Hiện Xếp Loại' trước khi xuất Excel.");
+                return;
+            }
+
+            const scope = document.getElementById('export-scope').value;
+            const selectedGrade = document.getElementById('export-grade-select').value;
+            const selectedClass = document.getElementById('conduct-class-select').value;
+            const semesterText = document.getElementById('semester-select').options[document.getElementById('semester-select').selectedIndex].text;
+            const academicYear = CURRENT_ACADEMIC_YEAR;
+            const today = new Date().toLocaleDateString('vi-VN');
+
+            let filteredResults = currentConductResults;
+
+            if (scope === 'grade') {
+                filteredResults = currentConductResults.filter(s => s.Khoi && s.Khoi.toString() === selectedGrade);
+            } else if (scope === 'class') {
+                if (!selectedClass) {
+                    alert("Vui lòng chọn Lớp để lọc.");
+                    return;
+                }
+                filteredResults = currentConductResults.filter(s => s.Lop === selectedClass);
+            }
+
+            if (filteredResults.length === 0) {
+                 alert("Không có kết quả nào để xuất cho tiêu chí lọc này.");
+                 return;
+            }
+
+            const dataToExport = filteredResults.map((s, index) => ({
+                'STT': index + 1,
+                'Mã HS': s.MaHS,
+                'Họ Tên': s.HoTen,
+                'Lớp': s.Lop,
+                'Khối': s.Khoi,
+                'Điểm Cả Năm': s.TotalPoints.toFixed(1),
+                'Hạnh Kiểm': s.Conduct
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(dataToExport, { origin: "A4", skipHeader: false });
+            const wb = XLSX.utils.book_new();
+
+            const title = `BÁO CÁO KẾT QUẢ XẾP LOẠI HẠNH KIỂM (${semesterText}) - NĂM HỌC ${academicYear}`;
+            let subtitle = `Ngày xuất: ${today}`;
+            if (scope === 'grade') subtitle += ` | Lọc theo: Khối ${selectedGrade}`;
+            if (scope === 'class') subtitle += ` | Lọc theo: Lớp ${selectedClass}`;
+
+            // Thêm tiêu đề
+            XLSX.utils.sheet_add_aoa(ws, [
+                [title],
+                [subtitle],
+                [] // Hàng trống
+            ], { origin: "A1" });
+
+
+            XLSX.utils.book_append_sheet(wb, ws, "XepLoaiHanhKiem");
+            const fileName = `HanhKiem_${academicYear}_${scope}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        async function updateStudentStatus() {
+            if (!db) return;
+            const studentID = document.getElementById('status-student-id').value.trim();
+            const statusType = document.getElementById('student-status-type').value;
+
+            if (!studentID) {
+                alert("Vui lòng nhập Mã HS.");
+                return;
+            }
+
+            if (!confirm(`Bạn có chắc chắn muốn cập nhật trạng thái của HS ${studentID} thành "${statusType}"?`)) return;
+
+            try {
+                const studentDocId = `${studentID}|${CURRENT_ACADEMIC_YEAR}`;
+                const studentRef = db.collection(mainCollection).doc(studentDocId);
+                
+                await studentRef.update({
+                    Status: statusType,
+                    StatusUpdateDate: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                alert(`Cập nhật trạng thái cho HS ${studentID} thành "${statusType}" thành công!`);
+                document.getElementById('status-student-id').value = '';
+                // Cần gọi drawCharts() để cập nhật lại absenceChart
+                drawCharts(); 
+
+            } catch (error) {
+                 console.error("Lỗi khi cập nhật trạng thái HS:", error);
+                 alert(`Lỗi cập nhật trạng thái: ${error.message}`);
+            }
+        }
+
+
+        // ***************************************************************
+        // CÁC HÀM CHO TRANG CÀI ĐẶT VI PHẠM (MANAGE-VIOLATIONS)
+        // ***************************************************************
+
+        function downloadViolationSampleFile() {
+             const csvContent = "data:text/csv;charset=utf-8," + 
+                "TenViPham,DiemTru\n" + 
+                "Quên đeo thẻ, -5\n" +
+                "Mặc sai đồng phục, -10\n" +
+                "Đánh nhau trong trường, -50";
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "LuatViPham_Mau.csv");
+            document.body.appendChild(link); 
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function handleViolationExcelImport() {
+            const fileInput = document.getElementById('violation-excel-file-input');
+            const statusDiv = document.getElementById('violation-import-status');
+            statusDiv.textContent = ''; 
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusDiv.textContent = "Vui lòng chọn một tệp Excel/CSV.";
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-semibold';
+                return;
+            }
+            if (!db) {
+                statusDiv.textContent = "Lỗi kết nối Firebase.";
+                statusDiv.className = 'mt-4 text-sm text-red-600 font-semibold';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            statusDiv.textContent = 'Đang đọc tệp...';
+            statusDiv.className = 'mt-4 text-sm text-blue-600 font-semibold';
+            
+            const academicYear = CURRENT_ACADEMIC_YEAR;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (json.length < 2) {
+                        throw new Error("Tệp không có dữ liệu (chỉ có hàng tiêu đề).");
+                    }
+
+                    const headerRow = json[0].map(h => String(h).trim().toUpperCase().replace(/\s/g, ''));
+                    const requiredHeaders = ['TENVIPHAM', 'DIEMTRU'];
+                    const headerMap = {};
+                    
+                    requiredHeaders.forEach(req => {
+                        const index = headerRow.indexOf(req);
+                        if (index === -1) {
+                            throw new Error(`Thiếu cột bắt buộc: ${req}`);
+                        }
+                        headerMap[req] = index;
+                    });
+
+                    const dataRows = json.slice(1);
+                    const rulesToProcess = dataRows
+                        .map(row => {
+                            const ruleName = String(row[headerMap['TENVIPHAM']] || '').trim();
+                            const pointsValue = String(row[headerMap['DIEMTRU']] || '').trim();
+
+                            if (!ruleName || isNaN(parseInt(pointsValue))) return null;
+                            
+                            // Tạo ID chuẩn hóa từ tên luật
+                            const docId = ruleName.toUpperCase().replace(/\s/g, '_').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+                            return {
+                                docId: docId,
+                                ruleName: ruleName,
+                                points: parseInt(pointsValue),
+                                academicYear: academicYear,
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                            };
+                        })
+                        .filter(r => r !== null);
+
+                    if (rulesToProcess.length === 0) {
+                        throw new Error("Không tìm thấy luật vi phạm hợp lệ để nạp.");
+                    }
+
+                    const maxBatchSize = 499;
+                    let totalImported = 0;
+                    const totalBatches = Math.ceil(rulesToProcess.length / maxBatchSize);
+
+                    for (let i = 0; i < rulesToProcess.length; i += maxBatchSize) {
+                        const batch = db.batch();
+                        const chunk = rulesToProcess.slice(i, i + maxBatchSize);
+
+                        chunk.forEach(rule => {
+                            const ruleRef = db.collection(violationRulesCollection).doc(rule.docId);
+                            batch.set(ruleRef, rule, { merge: true }); 
+                        });
+
+                        await batch.commit();
+                        totalImported += chunk.length;
+                        statusDiv.textContent = `Đang nạp: Gửi lô ${Math.ceil(totalImported / maxBatchSize)} / ${totalBatches}. Đã xử lý ${totalImported} luật...`;
+                        statusDiv.className = 'mt-4 text-sm text-blue-600 font-semibold';
+                    }
+
+                    statusDiv.textContent = `✅ Nạp danh sách luật vi phạm thành công ${totalImported} luật.`;
+                    statusDiv.className = 'mt-4 text-sm text-green-600 font-bold';
+                    
+                    loadViolationManagementTable();
+                    loadViolationRules(); 
+
+                } catch (error) {
+                    console.error("Lỗi khi xử lý file Excel luật vi phạm:", error);
+                    statusDiv.textContent = `❌ Lỗi Nạp Dữ Liệu: ${error.message}`;
+                    statusDiv.className = 'mt-4 text-sm text-red-600 font-bold';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+
+        async function loadViolationManagementTable() {
+            if (!db) return;
+            const tableBody = document.getElementById('violation-rules-table');
+            tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">Đang tải danh sách luật vi phạm...</td></tr>`;
+
+            try {
+                const snapshot = await db.collection(violationRulesCollection)
+                    .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .orderBy('ruleName')
+                    .get();
+
+                if (snapshot.empty) {
+                    tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">Chưa có luật vi phạm nào được thiết lập cho năm học này.</td></tr>`;
+                    return;
+                }
+
+                let html = '';
+                snapshot.forEach(doc => {
+                    const rule = doc.data();
+                    const pointClass = rule.points < 0 ? 'text-red-600' : 'text-green-600';
+                    const editArgs = `'${doc.id}', '${rule.ruleName.replace(/'/g, "\\'")}', ${rule.points}`;
+
+                    html += `
+                        <tr>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${rule.ruleName}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm ${pointClass} font-semibold">${rule.points}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium">
+                                <button onclick="editViolationRule(${editArgs})" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
+                                <button onclick="deleteViolationRule('${doc.id}')" class="ml-4 text-red-600 hover:text-red-900">Xoá</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tableBody.innerHTML = html;
+
+            } catch (error) {
+                console.error("Lỗi khi tải bảng luật vi phạm:", error);
+                tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-sm text-red-600">Lỗi tải dữ liệu: ${error.message}</td></tr>`;
+            }
+        }
+        
+        async function loadViolationRules() {
+             if (!db) return;
+            const selectEl = document.getElementById('violation-type');
+            
+            // Xóa các option không phải là "Chọn Loại Vi Phạm", "Vi phạm khác", "Điểm Cộng"
+            const options = selectEl.querySelectorAll('option:not([value=""]):not([value="ViPhamKhac"]):not([value="DiemCong"])');
+            options.forEach(o => o.remove());
+            const optgroups = selectEl.querySelectorAll('optgroup[label="Loại Vi Phạm Thường"]');
+            optgroups.forEach(g => g.remove());
+
+            try {
+                const snapshot = await db.collection(violationRulesCollection)
+                    .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                    .orderBy('ruleName')
+                    .get();
+
+                if (snapshot.empty) {
+                    console.log(`Không có luật vi phạm nào cho năm ${CURRENT_ACADEMIC_YEAR}.`);
+                    return;
+                }
+
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = "Loại Vi Phạm Thường";
+                snapshot.forEach(doc => {
+                    const rule = doc.data();
+                    const option = document.createElement('option');
+                    option.value = doc.id; // Dùng doc.id làm value (là ID chuẩn hóa)
+                    option.textContent = `${rule.ruleName} (${rule.points} điểm)`;
+                    option.dataset.points = rule.points;
+                    optgroup.appendChild(option);
+                });
+
+                const specialOptgroup = selectEl.querySelector('optgroup[label="Loại Đặc Biệt"]');
+                if (specialOptgroup) {
+                    // Chèn nhóm mới trước nhóm đặc biệt
+                    selectEl.insertBefore(optgroup, specialOptgroup);
+                } else {
+                    // Nếu không có nhóm đặc biệt, chèn cuối
+                    selectEl.appendChild(optgroup);
+                }
+
+            } catch (error) {
+                console.error("Lỗi khi tải danh sách vi phạm:", error);
+                if (error.message.includes("index")) {
+                    alert("Lỗi: " + error.message + "\n\nVui lòng mở Console (F12), nhấp vào link Firebase để tạo Index rồi tải lại trang.");
+                }
+            }
+        }
+        
+        function editViolationRule(id, ruleName, points) {
+            document.getElementById('edit-rule-id').value = id;
+            document.getElementById('new-rule-name').value = ruleName;
+            document.getElementById('new-rule-points').value = points;
+            document.getElementById('rule-save-status').textContent = 'Đang chỉnh sửa luật vi phạm hiện có.';
+            document.getElementById('rule-save-status').className = 'text-sm text-blue-600 font-semibold mt-3';
+            // Cuộn lên form
+            document.getElementById('manage-violations').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function clearViolationRuleForm() {
+            document.getElementById('edit-rule-id').value = '';
+            document.getElementById('new-rule-name').value = '';
+            document.getElementById('new-rule-points').value = '';
+            document.getElementById('rule-save-status').textContent = '';
+        }
+
+        async function saveViolationRule() {
+            if (!db) return;
+            const ruleName = document.getElementById('new-rule-name').value.trim();
+            const points = parseInt(document.getElementById('new-rule-points').value);
+            const editId = document.getElementById('edit-rule-id').value;
+            const statusDiv = document.getElementById('rule-save-status');
+
+            if (!ruleName || isNaN(points)) {
+                statusDiv.textContent = "Vui lòng nhập Tên Vi Phạm và Điểm Trừ/Cộng hợp lệ.";
+                statusDiv.className = 'text-sm text-red-600 font-semibold';
+                return;
+            }
+
+            statusDiv.textContent = 'Đang lưu...';
+            statusDiv.className = 'text-sm text-blue-600 font-semibold';
+
+            try {
+                // Sử dụng Tên Vi Phạm đã chuẩn hóa làm ID nếu tạo mới hoặc chưa có ID
+                const docId = editId || ruleName.toUpperCase().replace(/\s/g, '_').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+                const ruleData = {
+                    ruleName: ruleName,
+                    points: points,
+                    academicYear: CURRENT_ACADEMIC_YEAR,
+                };
+                
+                if (!editId) {
+                    ruleData.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+                }
+
+                await db.collection(violationRulesCollection).doc(docId).set(ruleData, { merge: true });
+                
+                statusDiv.textContent = `✅ ${editId ? 'Cập nhật' : 'Thêm mới'} luật vi phạm thành công!`;
+                statusDiv.className = 'text-sm text-green-600 font-bold';
+                
+                clearViolationRuleForm();
+                loadViolationManagementTable();
+                loadViolationRules(); // Tải lại danh sách vi phạm cho tab Ghi Nhận
+
+            } catch (error) {
+                console.error("Lỗi khi lưu luật vi phạm:", error);
+                statusDiv.textContent = `❌ Lỗi: ${error.message}`;
+                statusDiv.className = 'text-sm text-red-600 font-bold';
+            }
+        }
+
+        async function deleteViolationRule(id) {
+            if (!confirm("Bạn có chắc chắn muốn XÓA luật vi phạm này?")) return;
+            try {
+                await db.collection(violationRulesCollection).doc(id).delete();
+                alert("Xóa luật vi phạm thành công!");
+                loadViolationManagementTable();
+                loadViolationRules(); // Tải lại danh sách vi phạm cho tab Ghi Nhận
+            } catch (error) {
+                console.error("Lỗi khi xóa luật vi phạm:", error);
+                alert(`Lỗi khi xóa: ${error.message}`);
+            }
+        }
+
+        // 3.11. Khởi tạo
+        document.addEventListener('DOMContentLoaded', () => {
+            initFirebase();
+            
+             // Ẩn kết quả tìm kiếm khi click ra ngoài
+            document.addEventListener('click', (e) => {
+                const searchResults = document.getElementById('student-search-results');
+                const searchInput = document.getElementById('student-name-search');
+                if (searchResults && !searchResults.contains(e.target) && e.target !== searchInput) {
+                    searchResults.classList.add('hidden');
+                }
+            });
+            
+            // Listener để cập nhật tên file đã chọn
+            const fileInput = document.getElementById('excel-file-input');
+            const fileNameDisplay = document.getElementById('file-name-display');
+            
+            if (fileInput && fileNameDisplay) {
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        fileNameDisplay.textContent = e.target.files[0].name;
+                        fileNameDisplay.className = 'block mt-3 text-sm text-gray-700 font-semibold';
+                    } else {
+                        fileNameDisplay.textContent = 'Chưa có tệp nào được chọn';
+                        fileNameDisplay.className = 'block mt-3 text-sm text-gray-500';
+                    }
+                });
+            }
+
+            // Listener để cập nhật tên file đã chọn (Violation Rule Import)
+            const violationFileInput = document.getElementById('violation-excel-file-input');
+            const violationFileNameDisplay = document.getElementById('violation-file-name-display');
+
+            if (violationFileInput && violationFileNameDisplay) {
+                violationFileInput.addEventListener('change', (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        violationFileNameDisplay.textContent = e.target.files[0].name;
+                        violationFileNameDisplay.className = 'block mt-3 text-sm text-gray-700 font-semibold';
+                    } else {
+                        violationFileNameDisplay.textContent = 'Chưa có tệp nào được chọn';
+                        violationFileNameDisplay.className = 'block mt-3 text-sm text-gray-500';
+                    }
+                });
+            }
+        });
+    </script>
+<script>
+// === Việt hoá tiêu đề biểu đồ và nhãn thời gian ===
+function getVietnameseTimeFrameLabel(value) {
+    switch (value) {
+        case 'weekly': return 'Tuần này';
+        case 'monthly': return 'Tháng này';
+        case 'semester': return 'Học kỳ I';
+        case 'semester2': return 'Học kỳ II';
+        case 'yearly': return 'Cả năm';
+        case 'custom': return 'Khoảng tùy chỉnh';
+        default: return value;
+    }
+}
+
+function updateRankingChartTitle() {
+    const timeFrame = document.getElementById('stats-time-frame')?.value || 'weekly';
+    const label = getVietnameseTimeFrameLabel(timeFrame);
+    const titleElement = document.querySelector('h3.text-lg.md\:text-xl.font-semibold.mb-3');
+    if (titleElement) {
+        titleElement.textContent = `Xếp Hạng Thi Đua Lớp (Điểm Rèn Luyện - ${label})`;
+    }
+}
+
+// Gọi cập nhật khi thay đổi khung thời gian
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('stats-time-frame');
+    if (select) {
+        select.addEventListener('change', updateRankingChartTitle);
+        updateRankingChartTitle();
+    }
+});
+</script>
+
+<script>
+// --- VIỆT HOÁ CÁC NHÃN THỜI GIAN BIỂU ĐỒ ---
+function getVietnameseTimeFrameLabel(value) {
+    const labels = {
+        weekly: "Tuần này",
+        monthly: "Tháng này",
+        semester: "Học kỳ I",
+        semester2: "Học kỳ II",
+        yearly: "Cả Năm",
+        custom: "Khoảng Tùy chỉnh"
+    };
+    return labels[value] || value;
+}
+</script>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const allElements = document.querySelectorAll('button, a, span');
+        allElements.forEach(el => {
+            if (el.textContent.includes('Tải file Excel mẫu') || el.textContent.includes('.csv')) {
+                el.innerHTML = '📥 Tải file Excel mẫu (.xlsx)';
+                el.setAttribute('onclick', 'downloadExcelTemplate()');
+            }
+        });
+    });
+
+    function downloadExcelTemplate() {
+        // Đã sửa "Mã học sinh" thành "MAHS" để hệ thống của bạn đọc được
+        // (Nếu hệ thống tiếp tục báo thiếu cột HOTEN, LOP... bạn có thể sửa tiếp ở dòng dưới đây cho khớp nhé)
+        const data = [
+            ["MAHS", "HOTEN", "LOP", "GIOITINH", "NGAYSINH"], 
+            ["2508588067", "Sơn Bảo An", "10T1", "Nam", "28/01/2010"],
+            ["2508588087", "Dương Thị Kim Anh", "10T1", "Nữ", "24/11/2010"]
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        ws['!cols'] = [
+            {wch: 15}, // MAHS
+            {wch: 25}, // HOTEN
+            {wch: 10}, // LOP
+            {wch: 10}, // GIOITINH
+            {wch: 15}  // NGAYSINH
+        ];
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "DanhSachMau");
+        XLSX.writeFile(wb, "DanhSachHocSinh_Mau.xlsx");
+    }
+    </script>
+    <script>
+    (function() {
+        // 1. Can thiệp vào hàm đọc file gốc của trình duyệt
+        const originalReadAsText = FileReader.prototype.readAsText;
+        
+        FileReader.prototype.readAsText = function(file, encoding) {
+            // Nếu phát hiện người dùng chọn file Excel (.xlsx hoặc .xls)
+            if (file.name && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                const reader = new FileReader();
+                const self = this; // Giữ tham chiếu đến FileReader ban đầu của web bạn
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheet = workbook.SheetNames[0];
+                        
+                        // Bí quyết: Chuyển Excel thành chuỗi CSV y hệt như web bạn đang cần
+                        const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+                        
+                        // Nhồi chuỗi CSV vào kết quả trả về để "đánh lừa" code cũ
+                        Object.defineProperty(self, 'result', {
+                            value: csvText,
+                            configurable: true
+                        });
+                        
+                        // Kích hoạt sự kiện để hệ thống Firebase của bạn chạy bình thường
+                        if (typeof self.onload === 'function') {
+                            self.onload({ target: self });
+                        } else {
+                            self.dispatchEvent(new Event('load'));
+                        }
+                    } catch (error) {
+                        console.error("Lỗi khi đọc file Excel:", error);
+                        alert("File Excel bị lỗi hoặc không đúng định dạng!");
+                    }
+                };
+                // Bắt buộc đọc Excel dưới dạng nhị phân thay vì Text
+                reader.readAsArrayBuffer(file);
+                
+            } else {
+                // Nếu là file CSV chuẩn, cứ đọc bình thường bằng code cũ của bạn
+                originalReadAsText.call(this, file, encoding);
+            }
+        };
+        
+        // 2. Mở khóa ô chọn file để cho phép người dùng ấn chọn file .xlsx từ máy tính
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInputs = document.querySelectorAll('input[type="file"]');
+            fileInputs.forEach(input => {
+                let currentAccept = input.getAttribute('accept') || "";
+                if (currentAccept && currentAccept.includes('.csv') && !currentAccept.includes('.xlsx')) {
+                    input.setAttribute('accept', currentAccept + ', .xlsx, .xls');
+                } else if (!currentAccept) {
+                    input.setAttribute('accept', '.csv, .xlsx, .xls');
+                }
+            });
+        });
+    })();
+    </script>
+</body>
+</html>
